@@ -1,19 +1,11 @@
-import React, { useEffect, useState } from "react";
-import Avaliacao from "../../components/Avaliacao";
+import React, { useEffect, useRef, useState } from "react";
 import Botao from "../../components/Botao";
-import Cabecalho from "../../components/Cabecalho";
 import Container from "../../components/Container";
-import Grafico from "../../components/Grafico";
-import Rodape from "../../components/Rodape";
-import Subtitulo from "../../components/Subtitulo";
-import Tabela from "../../components/Tabela";
 import Titulo from "../../components/Titulo";
-import useDadosConsulta from "../../useDadosConsulta";
-import useDadosProfissional from "../../useDadosProfissional";
 import ModalCadastro from "./Modal";
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
-import { FilterMatchMode, FilterOperator } from "primereact/api";
+import { FilterMatchMode, FilterOperator, PrimeIcons } from "primereact/api";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { Calendar } from "primereact/calendar";
@@ -21,22 +13,32 @@ import { Slider } from "primereact/slider";
 import { ProgressBar } from "primereact/progressbar";
 import gdsLogo from "./gdsLogo.png";
 import styled from "styled-components";
+import getPacientesData from "../../services/pacienteService";
+import IPaciente from "../../types/IPaciente";
 
+let pacientesData: IPaciente[]
+pacientesData = getPacientesData()
 export default function Dashboard() {
- let pacientes: any = []
- pacientes = sessionStorage.getItem('pacientes')
+
+
  
-  // const pacientes = [{
-  //       id: 1000,
-  //       nome: 'James Butt',
-  //       cpf: '7777777777',
-  //       data_nascimento: '2015-09-13',
-  //       email: 'unqualified',
-  //       cidade: 'Santa Maria',
-  //   }]
-  //   pacientes.forEach(paciente => {
-  //     localStorage.setItem('pacientes', JSON.stringify(paciente))
-  //   })
+ const openRequest = indexedDB.open("clinica", 1);
+ //Cria banco de dados
+ openRequest.onupgradeneeded = function (event: any) {
+  const db = event.target.result;
+  const userObjectStore = db.createObjectStore("pacientes", {
+    keyPath: "id",
+    autoIncrement: true,
+  });
+  userObjectStore.createIndex("nome", "nome", { unique: false });
+  userObjectStore.createIndex("cpf", "cpf", { unique: false });
+  userObjectStore.createIndex("data_nascimento", "data_nascimento", { unique: false });
+  userObjectStore.createIndex("email", "email", { unique: false });
+  userObjectStore.createIndex("cidade", "cidade", { unique: false });
+}
+//Visualiza todos os dados
+
+
     
   const Imagem = styled.img`
   widht:  230px;
@@ -47,53 +49,35 @@ export default function Dashboard() {
   justify-content: center
 `;
 
-    const [customers, setCustomers] = useState();
+    const [pacientes, setPacientes] = useState(pacientesData);
     const [filters, setFilters] = useState({} as any);
     const [loading, setLoading] = useState(false);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
-
-    const [representatives] = useState([
-      { name: 'Amy Elsner', image: 'amyelsner.png' },
-      { name: 'Anna Fali', image: 'annafali.png' },
-      { name: 'Asiya Javayant', image: 'asiyajavayant.png' },
-      { name: 'Bernardo Dominic', image: 'bernardodominic.png' },
-      { name: 'Elwin Sharvill', image: 'elwinsharvill.png' },
-      { name: 'Ioni Bowcher', image: 'ionibowcher.png' },
-      { name: 'Ivan Magalhaes', image: 'ivanmagalhaes.png' },
-      { name: 'Onyama Limba', image: 'onyamalimba.png' },
-      { name: 'Stephen Shaw', image: 'stephenshaw.png' },
-      { name: 'XuXue Feng', image: 'xuxuefeng.png' }
-  ]);
-
-  const [statuses] = useState(['unqualified', 'qualified', 'new', 'negotiation', 'renewal']);
-
-  const getSeverity = (status: any) => {
-    switch (status) {
-        case 'unqualified':
-            return 'danger';
-
-        case 'qualified':
-            return 'success';
-
-        case 'new':
-            return 'info';
-
-        case 'negotiation':
-            return 'warning';
-
-        case 'renewal':
-            return null;
-    }
-};
+    const [selectedPacientes, setSelectedPacientes] = useState();
 
 useEffect(() => {
-  setCustomers(getCustomers(pacientes) as any);
+  const openRequest = indexedDB.open("clinica", 1);
+  const retorno: any = [];
+  openRequest.onsuccess = async function (event: any) {
+    const db = event.target.result;
+    const transaction = db.transaction("pacientes", "readonly");
+    const userObjectStore = transaction.objectStore("pacientes");
+    const request = userObjectStore.getAll();
+
+    request.onsuccess = await function (event: any) {
+      setPacientes(request.result)
+    };
+  }
+ 
+  console.log(pacientesData)
+
   setLoading(false);
   initFilters();
 }, []);
 
-const getCustomers = (data: any) => {
-    return pacientes;
+const getPacientes = (data: any) => {
+    
+    return data;
 };
 const initFilters = () => {
   setFilters({
@@ -122,11 +106,10 @@ const onGlobalFilterChange = (e: any) => {
 
 const renderHeader = () => {
   return (
-      <div className="flex justify-content-between">
-          {/* <Button type="button" icon="pi pi-filter-slash" label="Clear" outlined onClick={clearFilter} /> */}
-          <span className="p-input-icon-left">
-              <i className="pi pi-search" />
+      <div style={{display: 'flex', alignItems: 'center', gap: '16px'}} className="flex justify-content-between">
           <Titulo>Listagem de pacientes</Titulo>
+          <span style = {{ marginLeft: 'auto'}}className="p-input-icon-left">
+              <i className="pi pi-search" />
               <InputText value={globalFilterValue} onChange={onGlobalFilterChange} placeholder="Pesquisar" />
           </span>
           <Botao onClick={() => handleOpen()}>+ Adicionar paciente</Botao>
@@ -134,17 +117,12 @@ const renderHeader = () => {
   );
 };
 
-const clearFilter = () => {
-  initFilters();
-};
-
   const [open, setOpen] = useState(false);
-
+  const [data, setData] = useState(null);
 
   const handleOpen = () => {
     setOpen(true);
   };
-
 
   const handleClose = () => {
     setOpen(false);
@@ -156,41 +134,40 @@ const clearFilter = () => {
     return <Calendar value={options.value} onChange={(e) => options.filterCallback(e.value, options.index)} dateFormat="mm/dd/yy" placeholder="mm/dd/yyyy" mask="99/99/9999" />;
 };
 
-const activityFilterTemplate = (options: any) => {
-  return (
-      <React.Fragment>
-          <Slider value={options.value} onChange={(e) => options.filterCallback(e.value)} range className="m-3"></Slider>
-          <div className="flex align-items-center justify-content-between px-2">
-              <span>{options.value ? options.value[0] : 0}</span>
-              <span>{options.value ? options.value[1] : 100}</span>
-          </div>
-      </React.Fragment>
-  );
-};
+    const opcoes = (data: any) => {
+      
+      return (
+        <React.Fragment>
+            <Button icon="pi pi-pencil" rounded outlined className="mr-2" onClick={() => editarPaciente(data)} />
+            <Button icon="pi pi-trash" rounded outlined severity="danger" onClick={() => confirmarExclusao(data)} />
+        </React.Fragment>
+    );
+    }
 
-const activityBodyTemplate = (rowData: any) => {
-  return <ProgressBar value={rowData.activity} showValue={false} style={{ height: '6px' }}></ProgressBar>;
-};
+    const editarPaciente = (data: any) => {
+      return <ModalCadastro open={open} handleClose={handleClose} data = {data}/>
+    }
+    const confirmarExclusao = (data: any) => {
+      return data
+    }
 
   return (
     <Container>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
       <Imagem src={gdsLogo} alt="Logo da gds" />
+      </div>
       
-      <ModalCadastro open={open} handleClose={handleClose} />
-      {/* <Titulo imagem="consulta">Consultas do Dia</Titulo> */}
-      <DataTable value={pacientes} paginator showGridlines rows={10} loading={loading} dataKey="id" 
-              filters={filters} globalFilterFields={['nome', 'cpf', 'data_nascimento', 'email', 'cidade']} header={header}
+      <ModalCadastro open={open} handleClose={handleClose} data = {null}/>
+      <DataTable value={pacientes} paginator showGridlines rows={10} loading={loading} dataKey="id" selection={selectedPacientes} onSelectionChange={(e: any) => setSelectedPacientes(e.value)}
+              filters={filters} globalFilterFields={['nome', 'cpf', 'data_nascimento', 'email', 'cidade', 'acoes']} header={header}
               emptyMessage="No customers found.">
-          <Column field="nome" header="Nome" filter filterPlaceholder="Procurar por nome" style={{ minWidth: '12rem', color: '#136CDC' }} />
-          <Column field="cpf" header="CPF" filter filterPlaceholder="Procurar por cpf" style={{ minWidth: '12rem', color: '#474747' }} />
-          <Column field="data_nascimento" header="Data de Nascimento" filter filterPlaceholder="Procurar por data de nascimento" style={{ minWidth: '12rem', color: '#474747' }} filterElement={dateFilterTemplate} />
-          <Column field="email" header="E-mail" filter filterPlaceholder="Procurar por e-mail" style={{ minWidth: '12rem', color: '#474747' }} />
-          <Column field="cidade" header="Cidade" filter filterPlaceholder="Procurar por cidade" style={{ minWidth: '12rem', color: '#474747' }} />
+          <Column field="nome" header="Nome" sortable filterPlaceholder="Procurar por nome" style={{ minWidth: '12rem', color: '#136CDC' }} />
+          <Column field="cpf" header="CPF" sortable filterPlaceholder="Procurar por cpf" style={{ minWidth: '12rem', color: '#474747' }} />
+          <Column field="data_nascimento" header="Data de Nascimento" sortable filterPlaceholder="Procurar por data de nascimento" style={{ minWidth: '12rem', color: '#474747' }} filterElement={dateFilterTemplate} />
+          <Column field="email" header="E-mail" sortable filterPlaceholder="Procurar por e-mail" style={{ minWidth: '12rem', color: '#474747' }} />
+          <Column field="cidade" header="Cidade" sortable filterPlaceholder="Procurar por cidade" style={{ minWidth: '12rem', color: '#474747' }} />
+          <Column field="acoes" header="Ações" body={opcoes} style={{ minWidth: '12rem', color: '#474747' }} exportable={false} /> 
       </DataTable>
-      {/* <Titulo imagem="grafico">Consultas mensais por especialista</Titulo>
-      <Subtitulo>Dezembro/22</Subtitulo>
-      
-      <Titulo imagem="avaliacao">Avaliações de especialistas</Titulo> */}
       
     </Container>
   )
